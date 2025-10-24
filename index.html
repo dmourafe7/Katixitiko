@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Κατηχητικό 2025-2026</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Κατηχητικό 2025-2026</h1>
+  </header>
+
+  <main class="app-container">
+    <aside class="sidebar" aria-label="Ημερομηνίες Κυριακής">
+      <h2>Κυριακές</h2>
+      <ul id="sundaysList" class="sundays-list" role="list"></ul>
+    </aside>
+
+    <section class="content" aria-live="polite">
+      <section class="card">
+        <h3>Σύνοψη Συμμετοχών</h3>
+        <div class="summary-grid">
+          <div class="summary-box">
+            <div class="summary-label">Παρόντες (επιλεγμένη Κυριακή)</div>
+            <div id="selectedSundayAttendance" class="summary-value">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="summary-label">Μέσος όρος παρόντων</div>
+            <div id="averageAttendance" class="summary-value">0.0</div>
+          </div>
+        </div>
+        <h4>Παρουσίες ανά άτομο</h4>
+        <ul id="perAttendeeList" class="files-list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Συνολική Επισκόπηση</h3>
+        <div class="table-wrap">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th>Ημερομηνία</th>
+                <th>Θέμα (από Σύνοψη)</th>
+                <th>Παρόντες</th>
+              </tr>
+            </thead>
+            <tbody id="overviewTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="content-header">
+        <h2 id="selectedSundayTitle">Επιλέξτε Κυριακή</h2>
+      </div>
+
+      <section class="card">
+        <h3>Σύνοψη</h3>
+        <textarea id="overviewText" placeholder="Γράψτε εδώ μια σύντομη σύνοψη για αυτή την Κυριακή..."></textarea>
+        <div class="card-actions">
+          <button id="saveOverviewBtn" class="primary">Αποθήκευση Σύνοψης</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Ευαγγέλιο Κυριακής</h3>
+        <div class="upload-sections" style="grid-template-columns: 1fr;">
+          <div class="upload-group">
+            <div class="upload-row" style="grid-template-columns: 1fr;">
+              <input type="text" id="gospelPericope" placeholder="Χωρίο (π.χ. Λουκ. στ’ 31-36)" />
+            </div>
+            <div class="upload-row" style="grid-template-columns: 1fr;">
+              <input type="text" id="gospelPage" placeholder="Σελίδα στην έκδοση Τρεμπέλα (π.χ. 263-264)" />
+            </div>
+            <div class="card-actions">
+              <button id="saveGospelBtn" class="primary">Αποθήκευση Ευαγγελίου</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Αρχεία</h3>
+        <div class="upload-sections">
+          <div class="upload-group">
+            <h4>Θέμα</h4>
+            <div class="upload-row">
+              <input type="file" id="topicFile" accept="application/pdf" />
+              <button id="addTopicFileBtn">Προσθήκη</button>
+            </div>
+            <ul id="topicFilesList" class="files-list"></ul>
+            <small class="hint">Μέχρι 2 αρχεία PDF</small>
+          </div>
+          <!-- Παιχνίδι αφαιρέθηκε -->
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Παρουσιολόγιο</h3>
+        <div class="attendance-header">
+          <input type="text" id="newAttendeeName" placeholder="Προσθήκη ονόματος" />
+          <div style="display:flex; gap:8px;">
+            <button id="addAttendeeBtn">Προσθήκη</button>
+            <button id="refreshAttendeesBtn">Ανανέωση</button>
+          </div>
+        </div>
+        <ul id="attendanceList" class="attendance-list"></ul>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>Τα δεδομένα αποθηκεύονται τοπικά στον φυλλομετρητή σας (offline).</small>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io("https://your-render-url.onrender.com"); // replace with your Render URL
+
+  const checkbox = document.getElementById("myCheckbox");
+
+  // When checkbox changes, send event to server
+  checkbox.addEventListener("change", () => {
+    socket.emit("checkboxChanged", { checked: checkbox.checked });
+  });
+
+  // Listen for updates from server
+  socket.on("updateCheckbox", (data) => {
+    checkbox.checked = data.checked;
+  });
+</script>
+</body>
+</html>
