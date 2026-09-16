@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <rect x="16" y="16" width="480" height="480" rx="80" fill="none" stroke="#2563eb" stroke-width="8"/>
+  <!-- Σταυρός -->
+  <g fill="#2563eb">
+    <rect x="236" y="100" width="40" height="312" rx="4"/>
+    <rect x="140" y="180" width="232" height="40" rx="4"/>
+  </g>
+  <!-- Ανοιχτό βιβλίο -->
+  <path d="M 120 380 Q 200 360 256 380 Q 312 360 392 380 L 392 420 Q 312 400 256 420 Q 200 400 120 420 Z" 
+        fill="#e5e7eb" opacity="0.9"/>
+  <line x1="256" y1="380" x2="256" y2="420" stroke="#0f172a" stroke-width="4"/>
+</svg>

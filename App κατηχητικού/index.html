@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Εφαρμογή διαχείρισης κατηχητικού" />
+  
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Κατηχητικό" />
+  
+  <title>Κατηχητικό 2026-2027</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Κατηχητικό 2026-2027</h1>
+    <button id="menuToggle" class="menu-toggle" aria-label="Μενού">☰</button>
+  </header>
+
+  <main class="app-container">
+    <aside class="sidebar" id="sidebar" aria-label="Ημερομηνίες Κυριακής">
+      <h2>Κυριακές</h2>
+      <ul id="sundaysList" class="sundays-list" role="list"></ul>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <section class="content" aria-live="polite">
+      <section class="card">
+        <h3>Σύνοψη Συμμετοχών</h3>
+        <div class="summary-grid">
+          <div class="summary-box">
+            <div class="summary-label">Παρόντες (επιλεγμένη)</div>
+            <div id="selectedSundayAttendance" class="summary-value">0</div>
+          </div>
+          <div class="summary-box">
+            <div class="summary-label">Μέσος όρος</div>
+            <div id="averageAttendance" class="summary-value">0.0</div>
+          </div>
+        </div>
+        <h4>Παρουσίες ανά άτομο</h4>
+        <ul id="perAttendeeList" class="files-list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Συνολική Επισκόπηση</h3>
+        <div class="table-wrap">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th>Ημερομηνία</th>
+                <th>Θέμα</th>
+                <th>Παρ.</th>
+              </tr>
+            </thead>
+            <tbody id="overviewTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="content-header">
+        <h2 id="selectedSundayTitle">Επιλέξτε Κυριακή</h2>
+      </div>
+
+      <section class="card">
+        <h3>Σύνοψη</h3>
+        <textarea id="overviewText" placeholder="Γράψτε εδώ μια σύντομη σύνοψη..."></textarea>
+        <div class="card-actions">
+          <button id="saveOverviewBtn" class="primary">Αποθήκευση Σύνοψης</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Ευαγγέλιο Κυριακής</h3>
+        <div class="upload-group">
+          <div class="form-group">
+            <label for="gospelPericope">Χωρίο:</label>
+            <input type="text" id="gospelPericope" placeholder="π.χ. Λουκ. στ' 31-36" />
+          </div>
+          <div class="form-group">
+            <label for="gospelPage">Σελίδα (Τρεμπέλας):</label>
+            <input type="text" id="gospelPage" placeholder="π.χ. 263-264" />
+          </div>
+          <div class="card-actions">
+            <button id="saveGospelBtn" class="primary">Αποθήκευση Ευαγγελίου</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Παρουσιολόγιο</h3>
+        <div class="attendance-header">
+          <input type="text" id="newAttendeeName" placeholder="Προσθήκη ονόματος" />
+          <button id="addAttendeeBtn">Προσθήκη</button>
+          <button id="refreshAttendeesBtn">↻</button>
+        </div>
+        <ul id="attendanceList" class="attendance-list"></ul>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>Τα δεδομένα συγχρονίζονται σε πραγματικό χρόνο μέσω Firebase.</small>
+  </footer>
+
+  <!-- Profile Modal -->
+  <div id="profileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="profileModalTitle">Προφίλ</h2>
+        <button id="closeProfileModal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="profileForm">
+          <div class="form-group">
+            <label for="profileName">Όνομα (σύντομο):</label>
+            <input type="text" id="profileName" required />
+          </div>
+          <div class="form-group">
+            <label for="profileFullName">Πλήρες Όνομα:</label>
+            <input type="text" id="profileFullName" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="profileAge">Ηλικία:</label>
+              <input type="number" id="profileAge" min="0" max="20" />
+            </div>
+            <div class="form-group">
+              <label for="profileBirthYear">Έτος Γέννησης:</label>
+              <input type="number" id="profileBirthYear" readonly style="background-color: #1e293b; cursor: not-allowed;" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="profileClass">Τάξη:</label>
+            <select id="profileClass">
+              <option value="">-- Επιλέξτε --</option>
+              <option value="πρώτη">Πρώτη Δημοτικού</option>
+              <option value="δευτέρα">Δευτέρα Δημοτικού</option>
+              <option value="τρίτη">Τρίτη Δημοτικού</option>
+              <option value="τετάρτη">Τετάρτη Δημοτικού</option>
+              <option value="πέμπτη">Πέμπτη Δημοτικού</option>
+              <option value="έκτη">Έκτη Δημοτικού</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="profileMum">Μητέρα:</label>
+            <input type="text" id="profileMum" />
+          </div>
+          <div class="form-group">
+            <label for="profileDad">Πατέρας:</label>
+            <input type="text" id="profileDad" />
+          </div>
+          <div class="form-group">
+            <label for="profilePhone">Τηλέφωνο:</label>
+            <input type="tel" id="profilePhone" />
+          </div>
+          <div class="form-group">
+            <label for="profileEmail">Email:</label>
+            <input type="email" id="profileEmail" />
+          </div>
+          <div class="form-group">
+            <label for="profileComments">Σχόλια:</label>
+            <textarea id="profileComments" rows="3"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="cancelProfileBtn">Ακύρωση</button>
+            <button type="submit" id="saveProfileBtn" class="primary">Αποθήκευση</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
