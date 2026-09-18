@@ -28,6 +28,54 @@ setPersistence(auth, browserLocalPersistence).catch(err => {
   console.warn("Σφάλμα ρύθμισης persistence:", err);
 });
 
+// ============================================================
+// 👇 THEME SWITCHER
+// ============================================================
+const THEMES = ["dark", "midnight", "light"];
+const THEME_ICONS = { dark: "🌙", midnight: "🌑", light: "☀️" };
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const btn = document.getElementById("themeBtn");
+  if (btn) btn.textContent = THEME_ICONS[theme] || "🌙";
+
+  // Update theme-color meta
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    if (theme === "light") meta.setAttribute("content", "#f1f5f9");
+    else if (theme === "midnight") meta.setAttribute("content", "#000000");
+    else meta.setAttribute("content", "#0f172a");
+  }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("theme") || "dark";
+  applyTheme(saved);
+}
+
+const themeBtnEl = document.getElementById("themeBtn");
+if (themeBtnEl) {
+  const handleThemeToggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const current = document.documentElement.getAttribute("data-theme") || "dark";
+    const idx = THEMES.indexOf(current);
+    const next = THEMES[(idx + 1) % THEMES.length];
+    localStorage.setItem("theme", next);
+    applyTheme(next);
+    // Feedback στο κινητό
+    themeBtnEl.style.transform = "scale(0.9)";
+    setTimeout(() => { themeBtnEl.style.transform = ""; }, 120);
+  };
+  themeBtnEl.addEventListener("click", handleThemeToggle);
+  themeBtnEl.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    handleThemeToggle(e);
+  });
+}
+
+initTheme();
+
 // ---------- Auth UI Elements ----------
 const authScreen = document.getElementById("authScreen");
 const mainApp = document.getElementById("mainApp");
@@ -335,6 +383,7 @@ const DEFAULT_GOSPELS = {
 };
 
 let currentDateKey = null;
+let attendeeSearchTerm = "";
 
 const sundaysListEl = document.getElementById("sundaysList");
 const selectedSundayTitleEl = document.getElementById("selectedSundayTitle");
@@ -343,10 +392,11 @@ const saveOverviewBtn = document.getElementById("saveOverviewBtn");
 const gospelPericopeEl = document.getElementById("gospelPericope");
 const gospelPageEl = document.getElementById("gospelPage");
 const saveGospelBtn = document.getElementById("saveGospelBtn");
-const newAttendeeNameEl = document.getElementById("newAttendeeName");
 const addAttendeeBtn = document.getElementById("addAttendeeBtn");
 const refreshAttendeesBtn = document.getElementById("refreshAttendeesBtn");
 const attendanceListEl = document.getElementById("attendanceList");
+const attendeeSearchEl = document.getElementById("attendeeSearch");
+const noSearchResultsEl = document.getElementById("noSearchResults");
 const selectedSundayAttendanceEl = document.getElementById("selectedSundayAttendance");
 const averageAttendanceEl = document.getElementById("averageAttendance");
 const perAttendeeListEl = document.getElementById("perAttendeeList");
@@ -356,7 +406,11 @@ const profileModalTitle = document.getElementById("profileModalTitle");
 const closeProfileModal = document.getElementById("closeProfileModal");
 const cancelProfileBtn = document.getElementById("cancelProfileBtn");
 const profileForm = document.getElementById("profileForm");
+const leaderboardModal = document.getElementById("leaderboardModal");
+const leaderboardListEl = document.getElementById("leaderboardList");
+const closeLeaderboardModal = document.getElementById("closeLeaderboardModal");
 let currentProfileAttendeeId = null;
+let currentProfileIsNew = false;
 
 async function saveOverview(dateKey, text) {
   await set(ref(db, userPath('overviews/' + dateKey)), { dateKey, text });
@@ -374,17 +428,6 @@ async function listAttendees() {
       const nameB = b.fullName || b.name || "";
       return nameA.localeCompare(nameB, "el");
     });
-}
-async function addAttendee(name) {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error("Άδειο όνομα");
-  const record = {
-    name: trimmed, fullName: trimmed, age: '', birthYear: '',
-    class: '', mum: '', dad: '', phone: '', email: '', comments: ''
-  };
-  const newRef = push(ref(db, userPath('attendees')));
-  await set(newRef, record);
-  return Object.assign({ id: newRef.key }, record);
 }
 async function updateAttendee(attendeeId, newName) {
   const trimmed = newName.trim();
@@ -415,6 +458,13 @@ async function updateAttendeeProfile(attendeeId, profileData) {
   if (profileData.fullName) updated.name = profileData.fullName.trim();
   await update(ref(db, userPath('attendees/' + attendeeId)), updated);
 }
+async function createNewAttendee(profileData) {
+  const newRef = push(ref(db, userPath('attendees')));
+  const record = Object.assign({}, profileData);
+  if (profileData.fullName) record.name = profileData.fullName.trim();
+  await set(newRef, record);
+  return Object.assign({ id: newRef.key }, record);
+}
 async function setAttendance(dateKey, attendeeId, present) {
   if (present) await set(ref(db, userPath("attendance/" + dateKey + "/" + attendeeId)), true);
   else await remove(ref(db, userPath("attendance/" + dateKey + "/" + attendeeId)));
@@ -443,13 +493,11 @@ async function getAllAttendanceRecords() {
 function renderSundaysList() {
   sundaysListEl.innerHTML = "";
   SUNDAYS.forEach(item => {
-    const key = item.key;
-    const label = item.label;
     const li = document.createElement("li");
     li.className = "sunday-item";
-    li.dataset.key = key;
-    li.innerHTML = '<span class="sunday-dot"></span><span>' + label + '</span>';
-    li.addEventListener("click", () => selectSunday(key));
+    li.dataset.key = item.key;
+    li.innerHTML = '<span class="sunday-dot"></span><span>' + item.label + '</span>';
+    li.addEventListener("click", () => selectSunday(item.key));
     sundaysListEl.appendChild(li);
   });
 }
@@ -493,10 +541,53 @@ saveGospelBtn.addEventListener("click", async () => {
   toast("Το Ευαγγέλιο αποθηκεύτηκε.");
 });
 
+// ============================================================
+// Search toggle + listener
+// ============================================================
+const searchToggleBtn = document.getElementById("searchToggleBtn");
+const searchWrapperEl = document.getElementById("searchWrapper");
+
+if (searchToggleBtn && searchWrapperEl && attendeeSearchEl) {
+  function openSearch() {
+    searchWrapperEl.classList.add("open");
+    searchToggleBtn.textContent = "✕";
+    searchToggleBtn.setAttribute("aria-label", "Κλείσιμο αναζήτησης");
+    setTimeout(() => attendeeSearchEl.focus(), 100);
+  }
+  function closeSearch() {
+    searchWrapperEl.classList.remove("open");
+    searchToggleBtn.textContent = "🔍";
+    searchToggleBtn.setAttribute("aria-label", "Αναζήτηση");
+    attendeeSearchEl.value = "";
+    attendeeSearchTerm = "";
+    refreshAttendanceUI();
+  }
+  searchToggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (searchWrapperEl.classList.contains("open")) closeSearch();
+    else openSearch();
+  });
+  attendeeSearchEl.addEventListener("input", (e) => {
+    attendeeSearchTerm = e.target.value.trim().toLowerCase();
+    refreshAttendanceUI();
+  });
+  attendeeSearchEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSearch();
+  });
+  document.addEventListener("click", (e) => {
+    if (searchWrapperEl.classList.contains("open") &&
+      !searchWrapperEl.contains(e.target)) {
+      if (e.target === attendeeSearchEl) return;
+      closeSearch();
+    }
+  });
+  attendeeSearchEl.addEventListener("click", (e) => e.stopPropagation());
+}
+
 async function refreshAttendanceUI() {
   if (!currentDateKey || !currentUid) return;
   const unsub = onValue(ref(db, userPath('attendees')), async (snapshot) => {
-    const attendees = snapshot.exists()
+    const allAttendees = snapshot.exists()
       ? Object.keys(snapshot.val()).map(key => Object.assign({ id: key }, snapshot.val()[key]))
         .sort((a, b) => {
           const nameA = a.fullName || a.name || "";
@@ -504,6 +595,18 @@ async function refreshAttendanceUI() {
           return nameA.localeCompare(nameB, "el");
         })
       : [];
+
+    const attendees = attendeeSearchTerm
+      ? allAttendees.filter(a => {
+        const name = (a.fullName || a.name || "").toLowerCase();
+        return name.includes(attendeeSearchTerm);
+      })
+      : allAttendees;
+
+    if (noSearchResultsEl) {
+      noSearchResultsEl.style.display = (attendeeSearchTerm && attendees.length === 0) ? "block" : "none";
+    }
+
     const presentMap = await getAttendanceForDate(currentDateKey);
 
     attendanceListEl.innerHTML = "";
@@ -519,7 +622,6 @@ async function refreshAttendanceUI() {
         await refreshGlobalSections();
       });
 
-      // Όνομα: λευκά γράμματα, χωρίς underline, χωρίς click
       const name = document.createElement("span");
       name.className = "attendee-name";
       name.textContent = displayName;
@@ -527,7 +629,6 @@ async function refreshAttendanceUI() {
       const actions = document.createElement("div");
       actions.className = "attendee-actions";
 
-      // Κουμπί "Επεξ." → ανοίγει το modal προφίλ
       const editBtn = document.createElement("button");
       editBtn.textContent = "Επεξ.";
       editBtn.className = "edit-btn";
@@ -561,14 +662,11 @@ async function refreshAttendanceUI() {
   activeListeners.push(unsub);
 }
 
-addAttendeeBtn.addEventListener("click", async () => {
-  const name = newAttendeeNameEl.value;
-  if (!name.trim()) return newAttendeeNameEl.focus();
-  try {
-    await addAttendee(name);
-    newAttendeeNameEl.value = "";
-    toast("Το άτομο προστέθηκε στη λίστα.");
-  } catch (e) { alert("Δεν ήταν δυνατή η προσθήκη."); }
+// ============================================================
+// 👇 ΝΕΟ: Προσθήκη Παιδιού ανοίγει το modal προφίλ
+// ============================================================
+addAttendeeBtn.addEventListener("click", () => {
+  openNewAttendeeModal();
 });
 
 refreshAttendeesBtn.addEventListener("click", async () => {
@@ -613,7 +711,6 @@ async function renderGlobalSummary() {
       const title = document.createElement("span");
       title.className = "file-title per-attendee-name";
       title.textContent = item.name;
-      // Χωρίς click, χωρίς underline, λευκά γράμματα, λίγο μεγαλύτερα
       const actions = document.createElement("div");
       actions.className = "file-actions";
       const attendanceBadge = document.createElement("button");
@@ -664,8 +761,40 @@ async function getSummarySnippetForDate(dateKey) {
   return trimmed.length > 120 ? trimmed.slice(0, 117) + "..." : trimmed;
 }
 
+// ============================================================
+// Στατιστικά Παρουσίας στο προφίλ
+// ============================================================
+async function renderAttendeeStats(attendeeId) {
+  try {
+    const allRecords = await getAllAttendanceRecords();
+    const totalPresent = allRecords.filter(r => r.attendeeId === attendeeId).length;
+
+    const sundaysWithData = new Set();
+    allRecords.forEach(r => sundaysWithData.add(r.dateKey));
+    const totalSundays = sundaysWithData.size;
+
+    const percentage = totalSundays > 0 ? Math.round((totalPresent / totalSundays) * 100) : 0;
+
+    const countEl = document.getElementById("statAttendanceCount");
+    const totalEl = document.getElementById("statTotalSundays");
+    const percentEl = document.getElementById("statPercentage");
+
+    if (countEl) countEl.textContent = String(totalPresent);
+    if (totalEl) totalEl.textContent = String(totalSundays);
+    if (percentEl) percentEl.textContent = percentage + "%";
+  } catch (e) {
+    console.warn("Σφάλμα υπολογισμού στατιστικών:", e);
+  }
+}
+
+// ============================================================
+// 👇 ΝΕΟ: Άνοιγμα προφίλ (υπάρχοντος ή νέου)
+// ============================================================
+const statsBoxEl = document.querySelector(".attendance-stats-box");
+
 async function openProfileModal(attendeeId) {
   currentProfileAttendeeId = attendeeId;
+  currentProfileIsNew = false;
   const profile = await getAttendeeProfile(attendeeId);
   if (!profile) { alert("Δεν βρέθηκε το προφίλ."); return; }
 
@@ -681,12 +810,35 @@ async function openProfileModal(attendeeId) {
   document.getElementById("profileEmail").value = profile.email || '';
   document.getElementById("profileComments").value = profile.comments || '';
 
+  // Εμφάνιση στατιστικών
+  if (statsBoxEl) statsBoxEl.style.display = "block";
+  await renderAttendeeStats(attendeeId);
+
   profileModal.style.display = "flex";
+}
+
+function openNewAttendeeModal() {
+  currentProfileAttendeeId = null;
+  currentProfileIsNew = true;
+  profileModalTitle.textContent = "Νέο Παιδί";
+  profileForm.reset();
+
+  // Απόκρυψη στατιστικών (δεν έχει νόημα για νέο παιδί)
+  if (statsBoxEl) statsBoxEl.style.display = "none";
+
+  profileModal.style.display = "flex";
+
+  // Focus στο όνομα
+  setTimeout(() => {
+    const nameInput = document.getElementById("profileFullName");
+    if (nameInput) nameInput.focus();
+  }, 150);
 }
 
 function closeProfileModalFunc() {
   profileModal.style.display = "none";
   currentProfileAttendeeId = null;
+  currentProfileIsNew = false;
   profileForm.reset();
 }
 
@@ -695,11 +847,14 @@ cancelProfileBtn.addEventListener("click", closeProfileModalFunc);
 
 profileForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!currentProfileAttendeeId) return;
   try {
     const fullName = document.getElementById("profileFullName").value.trim();
+    if (!fullName) {
+      alert("Παρακαλώ εισάγετε όνομα.");
+      return;
+    }
     const profileData = {
-      name: fullName,          // Κρατάμε και το name συγχρονισμένο
+      name: fullName,
       fullName: fullName,
       age: document.getElementById("profileAge").value.trim(),
       birthYear: document.getElementById("profileBirthYear").value.trim(),
@@ -710,16 +865,95 @@ profileForm.addEventListener("submit", async (e) => {
       email: document.getElementById("profileEmail").value.trim(),
       comments: document.getElementById("profileComments").value.trim()
     };
-    await updateAttendeeProfile(currentProfileAttendeeId, profileData);
+
+    if (currentProfileIsNew || !currentProfileAttendeeId) {
+      // Δημιουργία νέου παιδιού
+      await createNewAttendee(profileData);
+      toast("Το παιδί προστέθηκε στη λίστα.");
+    } else {
+      // Ενημέρωση υπάρχοντος
+      await updateAttendeeProfile(currentProfileAttendeeId, profileData);
+      toast("Το προφίλ ενημερώθηκε.");
+    }
+
     closeProfileModalFunc();
-    toast("Το προφίλ ενημερώθηκε.");
-  } catch (err) { alert(err.message || "Σφάλμα αποθήκευσης προφίλ."); }
+  } catch (err) {
+    alert(err.message || "Σφάλμα αποθήκευσης.");
+  }
 });
 
 profileModal.addEventListener("click", (e) => {
   if (e.target === profileModal) closeProfileModalFunc();
 });
 
+// ============================================================
+// 👇 ΝΕΟ: Leaderboard
+// ============================================================
+async function showLeaderboard() {
+  if (!currentUid) return;
+
+  try {
+    const records = await getAllAttendanceRecords();
+    const attendees = await listAttendees();
+
+    const countByAttendee = new Map();
+    for (const r of records) {
+      countByAttendee.set(r.attendeeId, (countByAttendee.get(r.attendeeId) || 0) + 1);
+    }
+
+    const items = attendees.map(a => ({
+      name: a.fullName || a.name || "",
+      count: countByAttendee.get(a.id) || 0
+    }));
+
+    // Φθίνουσα σειρά
+    items.sort((a, b) => b.count - a.count);
+
+    leaderboardListEl.innerHTML = "";
+
+    if (items.length === 0) {
+      const li = document.createElement("li");
+      li.className = "leaderboard-empty";
+      li.textContent = "Δεν υπάρχουν παιδιά ακόμα.";
+      leaderboardListEl.appendChild(li);
+    } else {
+      items.forEach(item => {
+        const li = document.createElement("li");
+        li.className = "leaderboard-item";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "leaderboard-name";
+        nameSpan.textContent = item.name;
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "leaderboard-count";
+        countSpan.textContent = String(item.count);
+
+        li.append(nameSpan, countSpan);
+        leaderboardListEl.appendChild(li);
+      });
+    }
+
+    leaderboardModal.style.display = "flex";
+  } catch (e) {
+    console.error("Σφάλμα leaderboard:", e);
+    alert("Σφάλμα φόρτωσης κατάταξης: " + e.message);
+  }
+}
+
+function closeLeaderboard() {
+  leaderboardModal.style.display = "none";
+}
+
+
+// Leaderboard - safe listeners (?. = ασφαλής πρόσβαση)
+document.getElementById("leaderboardBtnDesktop")?.addEventListener("click", showLeaderboard);
+document.getElementById("closeLeaderboardModal")?.addEventListener("click", closeLeaderboard);
+document.getElementById("leaderboardModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "leaderboardModal") closeLeaderboard();
+});
+
+// ============================================================
 let toastTimeout = null;
 function toast(message) {
   let el = document.getElementById("toast");
@@ -739,23 +973,11 @@ function toast(message) {
   toastTimeout = setTimeout(() => { el.style.opacity = "0"; }, 1400);
 }
 
-// ============================================================
 // Αμφίδρομος υπολογισμός Ηλικίας ↔ Έτους Γέννησης
-// + Αυτόματος υπολογισμός από Τάξη
-// ============================================================
-
-
-
-// Τάξη: ΕΝΤΕΛΩΣ ΑΝΕΞΑΡΤΗΤΗ από ηλικία/έτος γέννησης.
-// Ο χρήστης την επιλέγει manually και δεν επηρεάζει τα άλλα πεδία.
-// (Δεν χρειάζεται listener - η τάξη αποθηκεύεται απλώς όπως είναι)
-
-// Ηλικία → Έτος Γέννησης
 document.getElementById("profileAge").addEventListener("input", function () {
   const age = parseInt(this.value, 10);
   const birthYearInput = document.getElementById("profileBirthYear");
   const currentYear = new Date().getFullYear();
-
   if (!isNaN(age) && age >= 0 && age <= 100) {
     birthYearInput.value = currentYear - age;
   } else if (this.value === '') {
@@ -763,12 +985,10 @@ document.getElementById("profileAge").addEventListener("input", function () {
   }
 });
 
-// Έτος Γέννησης → Ηλικία
 document.getElementById("profileBirthYear").addEventListener("input", function () {
   const birthYear = parseInt(this.value, 10);
   const ageInput = document.getElementById("profileAge");
   const currentYear = new Date().getFullYear();
-
   if (!isNaN(birthYear) && birthYear >= 1900 && birthYear <= currentYear) {
     ageInput.value = currentYear - birthYear;
   } else if (this.value === '') {
@@ -776,7 +996,6 @@ document.getElementById("profileBirthYear").addEventListener("input", function (
   }
 });
 
-// ---------- Mobile menu ----------
 function setupMobileMenu() {
   const menuToggle = document.getElementById("menuToggle");
   const sidebar = document.getElementById("sidebar");
@@ -808,7 +1027,6 @@ function setupMobileMenu() {
   });
 }
 
-// ---------- Service Worker ----------
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -819,7 +1037,6 @@ function registerServiceWorker() {
   }
 }
 
-// ---------- Ξεκίνημα εφαρμογής για συνδεδεμένο χρήστη ----------
 async function startAppForUser(uid) {
   cleanupListeners();
   currentUid = uid;
