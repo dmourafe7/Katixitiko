@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="el">
+<html lang="el" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
@@ -110,6 +110,11 @@
         <span class="user-badge" id="userBadge">—</span>
       </div>
       <div class="header-actions">
+        <div class="search-wrapper" id="searchWrapper">
+          <button id="searchToggleBtn" class="icon-btn" title="Αναζήτηση" aria-label="Αναζήτηση">🔍</button>
+          <input type="text" id="attendeeSearch" class="search-input" placeholder="Αναζήτηση παιδιού..." autocomplete="off" />
+        </div>
+        <button id="themeBtn" class="icon-btn" title="Αλλαγή θέματος" aria-label="Αλλαγή θέματος">🌙</button>
         <button id="logoutBtn" class="logout-btn" title="Αποσύνδεση">⏻</button>
         <button id="menuToggle" class="menu-toggle" aria-label="Μενού">☰</button>
       </div>
@@ -185,13 +190,18 @@
         </section>
 
         <section class="card" id="attendanceCard">
-          <h3>Παρουσιολόγιο</h3>
+          <div class="card-title-row">
+            <h3>Παρουσιολόγιο</h3>
+            <button id="leaderboardBtnDesktop" class="icon-btn leaderboard-btn-desktop" title="Κατάταξη Παρουσιών">🏆</button>
+          </div>
           <div class="attendance-header">
-            <input type="text" id="newAttendeeName" placeholder="Προσθήκη ονόματος" />
-            <button id="addAttendeeBtn">Προσθήκη</button>
-            <button id="refreshAttendeesBtn">↻</button>
+            <button id="addAttendeeBtn" class="primary">+ Προσθήκη Παιδιού</button>
+            <button id="refreshAttendeesBtn" title="Ανανέωση">↻</button>
           </div>
           <ul id="attendanceList" class="attendance-list"></ul>
+          <div id="noSearchResults" class="no-results" style="display:none;">
+            Δεν βρέθηκε παιδί με αυτό το όνομα.
+          </div>
         </section>
       </section>
     </main>
@@ -201,9 +211,7 @@
     </footer>
   </div>
 
-  <!-- ============================================================
-       Profile Modal - ΜΕ ΤΙΣ ΑΛΛΑΓΕΣ ΑΠΟ profilPaidiou.json
-       ============================================================ -->
+  <!-- Profile Modal -->
   <div id="profileModal" class="modal" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
@@ -212,7 +220,24 @@
       </div>
       <div class="modal-body">
         <form id="profileForm">
-          <!-- ΑΦΑΙΡΕΘΗΚΕ: το πεδίο "Όνομα (σύντομο)" (profileName) -->
+
+          <div class="attendance-stats-box">
+            <h4>📊 Στατιστικά Παρουσίας</h4>
+            <div class="attendance-stats-grid">
+              <div class="stat-box">
+                <div class="stat-value" id="statAttendanceCount">0</div>
+                <div class="stat-label">Παρουσίες</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" id="statTotalSundays">0</div>
+                <div class="stat-label">Σύνολο Κυριακών</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value" id="statPercentage">0%</div>
+                <div class="stat-label">Ποσοστό</div>
+              </div>
+            </div>
+          </div>
 
           <div class="form-group">
             <label for="profileFullName">Πλήρες Όνομα:</label>
@@ -279,6 +304,19 @@
             <button type="submit" id="saveProfileBtn" class="primary">Αποθήκευση</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div id="leaderboardModal" class="modal leaderboard-modal" style="display: none;">
+    <div class="modal-content leaderboard-content">
+      <div class="modal-header">
+        <h2>🏆 Κατάταξη Παρουσιών</h2>
+        <button id="closeLeaderboardModal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <ul id="leaderboardList" class="leaderboard-list"></ul>
       </div>
     </div>
   </div>
